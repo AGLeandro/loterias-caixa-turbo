@@ -1,0 +1,15 @@
+{
+  "name": "loterias-caixa-turbo",
+  "version": "1.2.0",
+  "description": "Loterias Caixa Turbo: extensão Chrome (Manifest V3) que automatiza apostas em lote da Mega-Sena e Lotofácil no portal Loterias Online da Caixa.",
+  "private": true,
+  "license": "MIT",
+  "author": "André Guedes Leandro",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.js\"",
+    "check": "node --check extension/content.js && node --check extension/popup.js && node --check extension/jogos.js && node --check extension/validacao.js"
+  }
+}

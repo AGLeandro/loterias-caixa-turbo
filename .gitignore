@@ -1,0 +1,12 @@
+# ferramentas locais
+codedb.snapshot
+.claude/
+
+# dependências / build
+node_modules/
+dist/
+*.zip
+
+# sistema
+.DS_Store
+Thumbs.db
