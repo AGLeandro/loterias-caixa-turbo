@@ -15,6 +15,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 - `popup.js`: um único caminho de erro ao iniciar a execução.
 - `validacao.js`: validação de cada linha extraída para função própria; prefixo "Linha N" aplicado em um só lugar.
 
+### Corrigido
+- Workflow de release idempotente: reenviar uma tag atualiza o `.zip` da release existente em vez de falhar.
+
 ## [1.2.0] - 2026-10-06
 
 ### Adicionado

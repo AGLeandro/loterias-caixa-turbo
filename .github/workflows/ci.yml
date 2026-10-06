@@ -34,7 +34,13 @@ jobs:
         run: |
           mkdir -p dist
           cd extension && zip -r "../dist/loterias-caixa-turbo-${GITHUB_REF_NAME}.zip" .
-      - name: Criar release no GitHub
+      - name: Publicar release no GitHub
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*.zip --title "$GITHUB_REF_NAME" --generate-notes
+        # Idempotente: se a tag for reenviada, atualiza o .zip da release existente em vez de falhar.
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/*.zip --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/*.zip --title "$GITHUB_REF_NAME" --generate-notes
+          fi
