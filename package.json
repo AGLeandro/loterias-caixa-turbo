@@ -10,6 +10,7 @@
   },
   "scripts": {
     "test": "node --test \"tests/**/*.test.js\"",
-    "check": "node --check extension/content.js && node --check extension/popup.js && node --check extension/jogos.js && node --check extension/validacao.js"
+    "check": "node --check extension/content.js && node --check extension/popup.js && node --check extension/jogos.js && node --check extension/validacao.js",
+    "demo": "node tools/demo/record.js"
   }
 }

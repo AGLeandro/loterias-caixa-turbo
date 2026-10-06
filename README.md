@@ -24,6 +24,12 @@
 
 </div>
 
+<p align="center">
+  <img src="docs/demo.gif" alt="Demonstração: o popup recebe três jogos, a extensão ajusta a quantidade, marca as dezenas, confere e envia cada aposta ao carrinho" width="900" />
+  <br/>
+  <sub>Popup e content script <b>reais</b> rodando sobre um volante simulado (<a href="tools/demo">tools/demo</a>), sem o site da Caixa. Gerado com <code>npm run demo</code>.</sub>
+</p>
+
 ---
 
 ## 💡 O problema
@@ -119,6 +125,7 @@ sequenceDiagram
 │   ├── content.js          # automação executada na página da Caixa
 │   └── icons/
 ├── tests/                  # node:test — validação e integridade do manifest
+├── tools/demo/             # volante simulado + gravador do GIF (Chrome DevTools Protocol)
 ├── docs/                   # imagens do README
 └── .github/workflows/      # CI + release automatizada
 ```
@@ -182,6 +189,12 @@ npm run check
 ```
 
 A suíte cobre o parsing e a validação de entrada (separadores, limites, repetições, linhas em branco, CRLF), a verificação de domínio contra URLs maliciosas e a integridade do `manifest.json`. O CI roda em cada push e pull request; ao criar uma tag `v*`, o workflow empacota `extension/` e publica a release.
+
+```bash
+npm run demo
+```
+
+Regrava o `docs/demo.gif`: sobe um servidor local, abre o Chrome headless via DevTools Protocol (WebSocket nativo do Node), executa o popup e o content script reais sobre o volante simulado de [`tools/demo`](tools/demo) e gera o GIF com ffmpeg. Requer Chrome e ffmpeg instalados (`CHROME_PATH` / `FFMPEG_PATH` opcionais). O volante simulado também serve para testar a automação localmente sem login no portal.
 
 ### Adicionando uma nova loteria
 

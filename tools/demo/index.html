@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Loterias Caixa Turbo — demonstração</title>
+  <!--
+    Volante SIMULADO usado apenas para gravar o GIF do README (npm run demo).
+    Reproduz a estrutura de elementos que o content.js usa no portal real
+    (#n01..#n60, a.selected, #aumentarnumero, #diminuirnumero, .input-mais-menos > span.ng-binding,
+    button.data-limpar-volante-mega-sena e #colocarnocarrinho), sem nenhuma identidade visual da Caixa.
+    O popup e o content script carregados aqui são os arquivos reais de extension/.
+  -->
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; height: 100vh; overflow: hidden;
+      font: 14px/1.4 -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      background: #e9edf1; color: #1a1a1a;
+    }
+    .barra {
+      height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 16px;
+      background: #fff; border-bottom: 1px solid #d5dbe1; font-size: 12.5px; color: #555;
+    }
+    .barra .url { flex: 1; background: #f1f3f5; border-radius: 16px; padding: 5px 14px; color: #777; }
+    .barra .ext { display: flex; align-items: center; gap: 6px; font-weight: 600; color: #0a5c36; }
+    .barra .ext img { width: 18px; height: 18px; }
+    .palco { display: flex; gap: 24px; padding: 18px 24px; height: calc(100vh - 40px); }
+    .volante {
+      flex: 1; background: #fff; border-radius: 10px; padding: 18px 22px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08); display: flex; gap: 22px;
+    }
+    .volante h2 { margin: 0 0 4px; font-size: 18px; color: #209869; }
+    .volante .aviso-demo { font-size: 11.5px; color: #8a8f95; margin-bottom: 12px; }
+    .qtd { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 13px; }
+    .input-mais-menos { display: inline-flex; align-items: center; border: 1px solid #cfd4da; border-radius: 6px; overflow: hidden; }
+    .input-mais-menos a { width: 30px; text-align: center; padding: 4px 0; cursor: pointer; background: #f1f3f5; font-weight: 700; user-select: none; }
+    .input-mais-menos span { width: 36px; text-align: center; font-weight: 700; }
+    .grade { display: grid; grid-template-columns: repeat(10, 38px); gap: 6px; }
+    .grade a {
+      height: 38px; display: flex; align-items: center; justify-content: center;
+      border: 1px solid #c9d3cc; border-radius: 50%; font-weight: 600; font-size: 13px;
+      color: #209869; cursor: pointer; user-select: none; transition: background .12s, color .12s;
+    }
+    .grade a.selected { background: #209869; color: #fff; border-color: #209869; }
+    .acoes { display: flex; gap: 10px; margin-top: 14px; }
+    .acoes button { border: 0; border-radius: 6px; padding: 9px 14px; font-weight: 700; cursor: pointer; }
+    .data-limpar-volante-mega-sena { background: #eef1f4; color: #333; }
+    #colocarnocarrinho { background: #209869; color: #fff; }
+    .carrinho { width: 250px; border-left: 1px solid #e3e7eb; padding-left: 18px; }
+    .carrinho h3 { margin: 0 0 8px; font-size: 14px; display: flex; justify-content: space-between; }
+    .carrinho .badge { background: #209869; color: #fff; border-radius: 10px; padding: 0 8px; font-size: 12px; }
+    .carrinho ol { margin: 0; padding-left: 18px; font: 12px/1.6 Consolas, Menlo, monospace; }
+    .carrinho li { animation: entra .35s ease-out; }
+    @keyframes entra { from { background: #c8f0dc; } to { background: transparent; } }
+    .popup {
+      width: 340px; flex: 0 0 340px; height: 560px; border: 0; border-radius: 10px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.18); background: #f6f7f9;
+    }
+  </style>
+</head>
+<body>
+  <div class="barra">
+    <span>◀ ▶ ⟳</span>
+    <span class="url">volante simulado · demonstração da extensão</span>
+    <span class="ext"><img src="/extension/icons/icon32.png" alt="" /> Loterias Caixa Turbo</span>
+  </div>
+
+  <div class="palco">
+    <iframe class="popup" id="popup" title="Popup da extensão"></iframe>
+
+    <div class="volante">
+      <div>
+        <h2>Mega-Sena</h2>
+        <div class="aviso-demo">Volante simulado para demonstração — não é o site da Caixa.</div>
+        <div class="qtd">
+          Quantidade de números da aposta
+          <div class="input-mais-menos">
+            <a id="diminuirnumero">−</a><span class="ng-binding">6</span><a id="aumentarnumero">+</a>
+          </div>
+        </div>
+        <div class="grade" id="grade"></div>
+        <div class="acoes">
+          <button class="data-limpar-volante-mega-sena">Limpar volante</button>
+          <button id="colocarnocarrinho">Colocar no carrinho</button>
+        </div>
+      </div>
+      <div class="carrinho">
+        <h3>Carrinho <span class="badge" id="qtdCarrinho">0</span></h3>
+        <ol id="itens"></ol>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---- Volante simulado: mesmo comportamento observável que o content.js espera ----
+    const grade = document.getElementById("grade");
+    const qtdSpan = document.querySelector(".input-mais-menos > span.ng-binding");
+    let qtd = 6;
+    for (let n = 1; n <= 60; n++) {
+      const a = document.createElement("a");
+      a.id = "n" + String(n).padStart(2, "0");
+      a.textContent = String(n).padStart(2, "0");
+      a.addEventListener("click", () => {
+        const marcadas = grade.querySelectorAll("a.selected").length;
+        if (a.classList.contains("selected")) a.classList.remove("selected");
+        else if (marcadas < qtd) a.classList.add("selected");
+      });
+      grade.appendChild(a);
+    }
+    const setQtd = (v) => { qtd = Math.max(6, Math.min(20, v)); qtdSpan.textContent = String(qtd); };
+    document.getElementById("aumentarnumero").addEventListener("click", () => setQtd(qtd + 1));
+    document.getElementById("diminuirnumero").addEventListener("click", () => {
+      if (grade.querySelectorAll("a.selected").length < qtd) setQtd(qtd - 1);
+    });
+    const limpar = () => grade.querySelectorAll("a.selected").forEach((a) => a.classList.remove("selected"));
+    document.querySelector(".data-limpar-volante-mega-sena").addEventListener("click", limpar);
+    document.getElementById("colocarnocarrinho").addEventListener("click", () => {
+      const sel = [...grade.querySelectorAll("a.selected")].map((a) => a.textContent);
+      if (sel.length !== qtd) return;
+      const li = document.createElement("li");
+      li.textContent = sel.join(" ");
+      document.getElementById("itens").appendChild(li);
+      document.getElementById("qtdCarrinho").textContent = String(document.querySelectorAll("#itens li").length);
+      setTimeout(limpar, 900); // mantém as dezenas visíveis por um instante (a extensão limpa antes do próximo conjunto)
+    });
+  </script>
+
+  <!-- Ponte que substitui as APIs chrome.* entre o popup (iframe) e o content script (esta página). -->
+  <script src="/tools/demo/bridge.js"></script>
+  <script src="/extension/jogos.js"></script>
+  <script src="/extension/content.js"></script>
+  <script>
+    const iframe = document.getElementById("popup");
+    iframe.src = "/extension/popup.html?demo";
+
+    // Roteiro automático (?autoplay): digita os conjuntos no popup real e clica em "Iniciar apostas".
+    if (location.search.includes("autoplay")) {
+      const conjuntos = "04 08 15 16 23 42\n01 05 12 23 34 45 52\n07 13 21 33 44 51 58 60";
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      iframe.addEventListener("load", async () => {
+        const doc = iframe.contentDocument;
+        const ta = doc.getElementById("sets");
+        await sleep(700);
+        ta.focus();
+        for (const ch of conjuntos) {
+          ta.value += ch;
+          ta.dispatchEvent(new Event("input", { bubbles: true }));
+          await sleep(ch === "\n" ? 180 : 22);
+        }
+        await sleep(500);
+        doc.getElementById("start").click();
+      });
+    }
+  </script>
+</body>
+</html>
