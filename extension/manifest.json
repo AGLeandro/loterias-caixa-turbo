@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Loterias Caixa Turbo - Apostas em lote (não oficial)",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Auxiliar não oficial: preenche vários jogos da Mega-Sena ou da Lotofácil no portal Loterias Online da Caixa e adiciona cada um ao carrinho automaticamente.",
   "permissions": ["scripting"],
   "host_permissions": [

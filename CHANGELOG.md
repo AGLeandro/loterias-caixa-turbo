@@ -2,7 +2,7 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e [SemVer](https://semver.org/lang/pt-BR/).
 
-## [Não lançado]
+## [1.2.1] - 2026-10-06
 
 ### Adicionado
 - GIF de demonstração no README, gerado por `npm run demo` a partir do popup e do content script reais rodando sobre um volante simulado (`tools/demo`).
