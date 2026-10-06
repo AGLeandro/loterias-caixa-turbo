@@ -1,8 +1,10 @@
-const { test, describe } = require("node:test");
-const assert = require("node:assert/strict");
+import { test, describe } from "node:test";
+import assert from "node:assert/strict";
 
-const JOGOS = require("../extension/jogos.js");
-const { parseSets, ehPortalCaixa, jogoDaUrl } = require("../extension/validacao.js");
+import "../extension/jogos.js";
+import { parseSets, ehPortalCaixa, jogoDaUrl } from "../extension/validacao.js";
+
+const { JOGOS } = globalThis;
 
 const MEGA = JOGOS["mega-sena"];
 const LOTO = JOGOS.lotofacil;
@@ -100,6 +102,7 @@ describe("ehPortalCaixa", () => {
     assert.equal(ehPortalCaixa("http://www.loteriasonline.caixa.gov.br/"), false);
     assert.equal(ehPortalCaixa("chrome://extensions"), false);
     assert.equal(ehPortalCaixa(""), false);
+    assert.equal(ehPortalCaixa(undefined), false); // aba sem permissão de host não expõe a URL
   });
 });
 

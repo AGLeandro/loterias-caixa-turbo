@@ -137,8 +137,8 @@ sequenceDiagram
 | **Verificar antes de agir, não confiar no clique** | Automação de UI é frágil. Cada conjunto é relido do DOM (`a.selected`) e comparado com o esperado antes do clique em *Colocar no Carrinho*. Uma falha custa uma execução interrompida — nunca uma aposta errada paga. |
 | **Sequência `mousedown → mouseup → click`** | O volante é AngularJS e alguns controles reagem a eventos de mouse além de `click`. Disparar a sequência completa imita o usuário de forma confiável sem depender de internals do framework. |
 | **Ajuste de quantidade em malha fechada** | Em vez de calcular "N cliques no +", o código lê o valor exibido a cada passo até atingir o alvo (com limite de iterações). Funciona a partir de qualquer estado inicial e tolera atrasos de renderização. |
-| **Configuração declarativa por jogo** (`jogos.js`) | Intervalo, limites, rota e seletores ficam num único objeto compartilhado entre popup e página. Suportar uma nova loteria é adicionar uma entrada — sem `if/else` espalhado. |
-| **Lógica pura separada da UI** (`validacao.js`) | O mesmo arquivo roda no popup (via `globalThis`) e no Node (via `module.exports`), permitindo testes unitários sem bundler nem mocks de navegador. |
+| **Configuração declarativa por jogo** (`jogos.js`) | Intervalo, limites, rota e seletores ficam num único objeto compartilhado entre popup e página; até o seletor de jogos do popup é gerado a partir dele. Suportar uma nova loteria é adicionar uma entrada — sem `if/else` espalhado. |
+| **Lógica pura separada da UI** (`validacao.js`) | Módulo ES importado tanto pelo popup quanto pelos testes no Node — sem bundler, sem mocks de navegador e sem dependência de ordem de `<script>`. |
 | **Injeção idempotente** | Se o content script não responder ao `ping` (ex.: extensão recarregada com a aba aberta), o popup o injeta sob demanda. Guardas (`window.__megaLoteCarregado`, `globalThis.JOGOS ||=`) impedem listeners duplicados. |
 | **Menor privilégio** | Apenas `scripting` + host restrito a `https://*.loteriasonline.caixa.gov.br/*`. A aba é validada pelo *hostname* (não por substring), e nenhum dado sai do navegador. |
 | **Zero dependências, zero build** | O que está em `extension/` é exatamente o que roda. Fácil de auditar — importante para algo que opera numa página com carrinho de compras. |
@@ -184,11 +184,7 @@ Requisitos: **Node.js 22+** (apenas para os testes; a extensão não tem build).
 npm test
 ```
 
-```bash
-npm run check
-```
-
-A suíte cobre o parsing e a validação de entrada (separadores, limites, repetições, linhas em branco, CRLF), a verificação de domínio contra URLs maliciosas e a integridade do `manifest.json`. O CI roda em cada push e pull request; ao criar uma tag `v*`, o workflow empacota `extension/` e publica a release.
+A suíte cobre o parsing e a validação de entrada (separadores, limites, repetições, linhas em branco, CRLF), a verificação de domínio contra URLs maliciosas, a integridade do `manifest.json` e a sintaxe de todo `.js` do projeto (descobertos automaticamente). O CI roda em cada push e pull request; ao criar uma tag `v*`, o workflow empacota `extension/` e publica a release.
 
 ```bash
 npm run demo
@@ -199,8 +195,7 @@ Regrava o `docs/demo.gif`: sobe um servidor local, abre o Chrome headless via De
 ### Adicionando uma nova loteria
 
 1. Adicione uma entrada em [`extension/jogos.js`](extension/jogos.js) com `nome`, `rota`, `maiorDezena`, `minDezenas`, `maxDezenas` e o seletor `limpar`.
-2. Adicione a opção correspondente no seletor de jogo em [`extension/popup.html`](extension/popup.html).
-3. Os testes já validam automaticamente que o `exemplo` do novo jogo passa nas regras.
+2. Pronto: o popup gera o botão do novo jogo automaticamente, e os testes já validam automaticamente que o `exemplo` do novo jogo passa nas regras.
 
 ### Se o site da Caixa mudar
 

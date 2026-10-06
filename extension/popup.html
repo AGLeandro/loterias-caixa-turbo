@@ -15,6 +15,7 @@
       --border: #cfd4da;
       --border-soft: #e2e6ea;
       --brand: #0a5c36;
+      --brand-solid: #0a5c36;
       --accent: #0a8f4d;
       --accent-disabled: #9bbfab;
       --danger: #b23b3b;
@@ -66,7 +67,7 @@
       cursor: pointer;
     }
     .jogos input { position: absolute; opacity: 0; pointer-events: none; }
-    .jogos label:has(input:checked) { background: #0a5c36; border-color: #0a5c36; color: #fff; }
+    .jogos label:has(input:checked) { background: var(--brand-solid); border-color: var(--brand-solid); color: #fff; }
     .jogos label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
     textarea {
       width: 100%;
@@ -116,10 +117,7 @@
 <body>
   <h1>Loterias Caixa Turbo <span class="tag">não oficial</span></h1>
 
-  <div class="jogos" role="radiogroup" aria-label="Jogo">
-    <label><input type="radio" name="jogo" value="mega-sena" checked /> Mega-Sena</label>
-    <label><input type="radio" name="jogo" value="lotofacil" /> Lotofácil</label>
-  </div>
+  <div class="jogos" id="jogos" role="radiogroup" aria-label="Jogo"></div>
 
   <p class="sub">Digite <b>um conjunto por linha</b>. Cada conjunto deve ter de <b id="faixa"></b> (de 01 a <span id="maior"></span>), separadas por espaço, vírgula ou ponto.</p>
 
@@ -131,12 +129,10 @@
     <button id="stop" disabled>Parar</button>
   </div>
 
-  <div class="hint">Abra a página da <span class="nome-jogo"></span> no portal <code>loteriasonline.caixa.gov.br</code> antes de iniciar. A extensão ajusta a quantidade, marca os números e clica em "Colocar no Carrinho" para cada conjunto. O pagamento é sempre feito por você.</div>
+  <div class="hint">Abra a página da <span id="nome-jogo"></span> no portal <code>loteriasonline.caixa.gov.br</code> antes de iniciar. A extensão ajusta a quantidade, marca os números e clica em "Colocar no Carrinho" para cada conjunto. O pagamento é sempre feito por você.</div>
 
   <div id="status" aria-live="polite">Pronto.</div>
 
-  <script src="jogos.js"></script>
-  <script src="validacao.js"></script>
-  <script src="popup.js"></script>
+  <script type="module" src="popup.js"></script>
 </body>
 </html>

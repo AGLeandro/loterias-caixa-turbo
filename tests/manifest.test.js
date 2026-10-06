@@ -1,11 +1,12 @@
-const { test } = require("node:test");
-const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 
-const DIR = path.join(__dirname, "..", "extension");
-const manifest = JSON.parse(fs.readFileSync(path.join(DIR, "manifest.json"), "utf8"));
-const pkg = require("../package.json");
+const DIR = path.join(import.meta.dirname, "..", "extension");
+const lerJson = (arquivo) => JSON.parse(fs.readFileSync(arquivo, "utf8"));
+const manifest = lerJson(path.join(DIR, "manifest.json"));
+const pkg = lerJson(path.join(import.meta.dirname, "..", "package.json"));
 
 test("usa Manifest V3", () => {
   assert.equal(manifest.manifest_version, 3);

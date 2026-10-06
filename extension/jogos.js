@@ -1,6 +1,7 @@
 /* jogos.js - regras e seletores de cada loteria suportada.
- * Carregado pelo popup (popup.html) e pela página (antes do content.js).
- * Usa globalThis para não quebrar se for injetado mais de uma vez na mesma aba.
+ * Script clássico (não módulo) porque também é content script: publica as regras em globalThis.JOGOS.
+ * O popup e os testes o importam só pelo efeito colateral. Usa `||` para não quebrar se for injetado
+ * mais de uma vez na mesma aba.
  * Para suportar um novo jogo, basta adicionar uma entrada aqui.
  */
 
@@ -24,5 +25,3 @@ globalThis.JOGOS = globalThis.JOGOS || {
     exemplo: "01 02 03 05 07 08 10 11 13 14 17 19 20 22 25\n02 03 04 06 07 09 10 12 13 15 16 18 20 21 23 24",
   },
 };
-
-if (typeof module !== "undefined" && module.exports) module.exports = globalThis.JOGOS;

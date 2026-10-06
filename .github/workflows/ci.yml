@@ -18,9 +18,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Checagem de sintaxe
-        run: npm run check
-      - name: Testes unitários
+      - name: Testes
         run: npm test
 
   release:

@@ -7,6 +7,9 @@
  *   4) confere a seleção;
  *   5) clica em "Colocar no Carrinho".
  * Reporta o progresso de volta ao popup e num aviso flutuante na própria página.
+ *
+ * Protocolo de mensagens (popup -> página): ping, iniciar { jogo, sets }, parar.
+ * Página -> popup: progresso { texto, nivel?: "ok" | "err", fim?: true }.
  */
 
 // Evita registrar tudo duas vezes caso o script seja injetado mais de uma vez.
@@ -26,9 +29,19 @@ if (!window.__megaLoteCarregado) {
     dezena: (n) => "#" + idDezena(n), // #n01 .. #n60
   };
 
-  let parar = false; // sinal de interrupção vindo do popup
-  let rodando = false; // trava contra execuções simultâneas
-  let jogo = null; // regras do jogo em execução (entrada de JOGOS)
+  // ---- Esperas (ms), calibradas no portal real para o AngularJS atualizar a tela ----
+  const ESPERA = {
+    aposLimpar: 250,
+    aposCliqueQtd: 160,
+    qtdIlegivel: 120,
+    entreDezenas: 45,
+    antesDeConferir: 300,
+    aposCarrinho: 1600, // item entrar no carrinho / animação
+  };
+  const MAX_CLIQUES_QTD = 40; // suficiente para ir de qualquer valor a qualquer outro
+
+  // Execução em andamento: null quando ociosa. Concentra todo o estado mutável do script.
+  let execucao = null; // { jogo, parar: boolean }
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -36,7 +49,7 @@ if (!window.__megaLoteCarregado) {
   function progresso(texto, opcoes = {}) {
     // No MV3 sendMessage retorna uma Promise que rejeita quando o popup está fechado.
     chrome.runtime.sendMessage({ tipo: "progresso", texto, ...opcoes }).catch(() => {});
-    mostrarAviso(texto, opcoes.nivel, opcoes.fim);
+    mostrarAviso(texto, opcoes);
   }
 
   /** Clica de forma robusta disparando a sequência de eventos do mouse. */
@@ -46,41 +59,39 @@ if (!window.__megaLoteCarregado) {
     }
   }
 
-  /** Lê a quantidade de números atualmente configurada. */
+  /** Lê a quantidade de números atualmente configurada (null se ainda não renderizou). */
   function lerQtd() {
-    const span = document.querySelector(SEL.qtdDisplay);
-    const v = span ? parseInt((span.textContent || "").trim(), 10) : NaN;
+    const v = parseInt(document.querySelector(SEL.qtdDisplay)?.textContent ?? "", 10);
     return Number.isFinite(v) ? v : null;
   }
 
-  /** Ajusta a quantidade de números para o alvo, clicando em + / -. */
+  /** Ajusta a quantidade de números para o alvo, clicando em + / - e relendo a tela a cada passo. */
   async function ajustarQtd(alvo) {
     const mais = document.querySelector(SEL.qtdMais);
     const menos = document.querySelector(SEL.qtdMenos);
     if (!mais || !menos) throw new Error("Controle de quantidade não encontrado.");
 
-    // no máximo ~40 cliques para chegar em qualquer valor do intervalo
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < MAX_CLIQUES_QTD; i++) {
       const atual = lerQtd();
-      if (atual === alvo) return true;
-      if (atual === null) { await sleep(120); continue; }
+      if (atual === alvo) return;
+      if (atual === null) { await sleep(ESPERA.qtdIlegivel); continue; }
       clicar(atual < alvo ? mais : menos);
-      await sleep(160); // espera o Angular atualizar o número exibido
+      await sleep(ESPERA.aposCliqueQtd);
     }
-    return lerQtd() === alvo;
+    if (lerQtd() !== alvo) throw new Error(`Não foi possível ajustar a quantidade para ${alvo}.`);
   }
 
   /** Limpa todas as marcações do volante. */
-  async function limparVolante() {
+  async function limparVolante(jogo) {
     const btn = document.querySelector(jogo.limpar);
-    if (btn) { clicar(btn); await sleep(250); }
+    if (btn) { clicar(btn); await sleep(ESPERA.aposLimpar); }
   }
 
-  /** Ids das dezenas marcadas no momento (apenas células n01..n60). */
+  /** Ids das dezenas marcadas no momento (apenas células n01..n60), ordenados. */
   function marcadas() {
-    return Array.from(document.querySelectorAll("a.selected"))
-      .map((a) => a.id)
-      .filter((id) => /^n\d{2}$/.test(id));
+    return Array.from(document.querySelectorAll("a.selected"), (a) => a.id)
+      .filter((id) => /^n\d{2}$/.test(id))
+      .sort();
   }
 
   /** Marca as dezenas do conjunto, uma a uma. */
@@ -90,79 +101,66 @@ if (!window.__megaLoteCarregado) {
       if (!cel) throw new Error("Dezena " + d + " não encontrada na página.");
       if (!cel.classList.contains("selected")) {
         clicar(cel);
-        await sleep(45);
+        await sleep(ESPERA.entreDezenas);
       }
     }
   }
 
-  /** Confere se exatamente o conjunto pedido está marcado. */
-  function conferirSelecao(dezenas) {
-    const esperado = dezenas.map(idDezena).sort();
-    const atual = marcadas().sort();
-    if (atual.length !== esperado.length) return false;
-    return esperado.every((id, i) => id === atual[i]);
-  }
-
-  /** Processa um único conjunto. Retorna true se foi para o carrinho. */
-  async function processarConjunto(dezenas, indice, total) {
+  /** Processa um único conjunto; lança erro (sem enviar ao carrinho) se a seleção não conferir. */
+  async function processarConjunto(jogo, dezenas, indice, total) {
     progresso(`Conjunto ${indice}/${total}: ${dezenas.length} dezenas...`);
 
-    await limparVolante();
-
-    const okQtd = await ajustarQtd(dezenas.length);
-    if (!okQtd) throw new Error(`Não foi possível ajustar a quantidade para ${dezenas.length}.`);
-
+    await limparVolante(jogo);
+    await ajustarQtd(dezenas.length);
     await marcarDezenas(dezenas);
-    await sleep(300);
+    await sleep(ESPERA.antesDeConferir);
 
-    if (!conferirSelecao(dezenas)) {
-      throw new Error(
-        `Seleção não confere no conjunto ${indice}. Marcado: [${marcadas().join(", ")}]. Nada foi enviado ao carrinho.`
-      );
+    const atual = marcadas();
+    if (atual.join() !== dezenas.map(idDezena).sort().join()) {
+      throw new Error(`Seleção não confere no conjunto ${indice}. Marcado: [${atual.join(", ")}]. Nada foi enviado ao carrinho.`);
     }
 
     const btn = document.querySelector(SEL.carrinho);
     if (!btn) throw new Error('Botão "Colocar no Carrinho" não encontrado.');
     clicar(btn);
-    await sleep(1600); // espera o item entrar no carrinho / animação
+    await sleep(ESPERA.aposCarrinho);
 
     progresso(`Conjunto ${indice}/${total} adicionado ao carrinho.`, { nivel: "ok" });
-    return true;
   }
 
   /** Loop principal por todos os conjuntos. */
   async function executar(idJogo, sets) {
-    if (rodando) return; // ignora um segundo "iniciar" enquanto já processa
-    rodando = true;
-    parar = false;
+    if (execucao) return; // ignora um segundo "iniciar" enquanto já processa
+    const jogo = globalThis.JOGOS[idJogo];
+    execucao = { jogo, parar: false };
     let adicionados = 0;
     try {
-      jogo = globalThis.JOGOS && globalThis.JOGOS[idJogo];
       if (!jogo) throw new Error(`Jogo desconhecido: ${idJogo}.`);
       // O botão "Limpar Volante" é exclusivo de cada jogo: garante que a aba é a do jogo escolhido.
       if (!document.querySelector(jogo.limpar)) {
         throw new Error(`Esta página não é o volante da ${jogo.nome}. Abra a página da ${jogo.nome} e tente de novo.`);
       }
 
-      for (let i = 0; i < sets.length; i++) {
-        if (parar) {
+      for (const [i, dezenas] of sets.entries()) {
+        if (execucao.parar) {
           progresso(`Interrompido pelo usuário. ${adicionados} conjunto(s) no carrinho.`, { nivel: "err", fim: true });
           return;
         }
-        await processarConjunto(sets[i], i + 1, sets.length);
+        await processarConjunto(jogo, dezenas, i + 1, sets.length);
         adicionados++;
       }
       progresso(`Concluído! ${adicionados} conjunto(s) no carrinho. Revise e finalize o pagamento manualmente.`, { nivel: "ok", fim: true });
     } catch (e) {
       progresso("Erro: " + e.message, { nivel: "err", fim: true });
     } finally {
-      rodando = false;
+      execucao = null;
     }
   }
 
   // ---- Aviso flutuante na própria página ----
+  const COR_AVISO = { ok: "#0a8f4d", err: "#b23b3b", padrao: "#0a5c36" };
   let avisoTimer = null;
-  function mostrarAviso(texto, nivel, fim) {
+  function mostrarAviso(texto, { nivel, fim }) {
     let box = document.getElementById("__megaLoteAviso");
     if (!box) {
       box = document.createElement("div");
@@ -170,26 +168,28 @@ if (!window.__megaLoteCarregado) {
       box.setAttribute("role", "status");
       box.style.cssText =
         "position:fixed;top:12px;right:12px;z-index:2147483647;max-width:300px;" +
-        "background:#0a5c36;color:#fff;font:13px/1.4 -apple-system,Segoe UI,Arial,sans-serif;" +
+        "color:#fff;font:13px/1.4 -apple-system,Segoe UI,Arial,sans-serif;" +
         "padding:10px 12px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.3);";
       document.body.appendChild(box);
     }
-    box.style.background = nivel === "err" ? "#b23b3b" : (nivel === "ok" ? "#0a8f4d" : "#0a5c36");
+    box.style.background = COR_AVISO[nivel] || COR_AVISO.padrao;
+    const jogo = execucao?.jogo;
     box.textContent = "Loterias Caixa Turbo" + (jogo ? " · " + jogo.nome : "") + ": " + texto;
 
     // Ao terminar (concluído/erro/parado), remove o aviso após alguns segundos.
-    if (avisoTimer) { clearTimeout(avisoTimer); avisoTimer = null; }
-    if (fim) {
-      avisoTimer = setTimeout(() => { box.remove(); avisoTimer = null; }, 6000);
-    }
+    clearTimeout(avisoTimer);
+    avisoTimer = fim ? setTimeout(() => box.remove(), 6000) : null;
   }
 
-  // ---- Recebe mensagens do popup ----
-  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-    if (!msg) return;
+  // ---- Mensagens do popup ----
+  const ACOES = {
     // O ping também informa se há execução em andamento (o popup pode ter sido fechado e reaberto).
-    if (msg.tipo === "ping") { sendResponse({ ok: true, rodando }); return; }
-    if (msg.tipo === "iniciar") { executar(msg.jogo, msg.sets || []); sendResponse({ ok: true }); return; }
-    if (msg.tipo === "parar") { parar = true; sendResponse({ ok: true }); return; }
+    ping: () => ({ ok: true, rodando: execucao !== null }),
+    iniciar: (msg) => { executar(msg.jogo, msg.sets || []); return { ok: true }; },
+    parar: () => { if (execucao) execucao.parar = true; return { ok: true }; },
+  };
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    const acao = ACOES[msg?.tipo];
+    if (acao) sendResponse(acao(msg));
   });
 }

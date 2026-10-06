@@ -6,6 +6,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 
 ### Adicionado
 - GIF de demonstração no README, gerado por `npm run demo` a partir do popup e do content script reais rodando sobre um volante simulado (`tools/demo`).
+- Teste que verifica a sintaxe de todo `.js` do projeto, substituindo a lista manual do `npm run check`.
+
+### Alterado
+- Popup e validação viraram módulos ES com imports explícitos (fim do wrapper UMD e dos globais dependentes da ordem dos `<script>`).
+- O seletor de jogos do popup é gerado a partir de `jogos.js`: adicionar uma loteria passa a exigir uma única alteração.
+- `content.js`: estado de execução concentrado num único objeto (`execucao`), tempos de espera nomeados (`ESPERA`) e mensagens tratadas por uma tabela de ações.
+- `popup.js`: um único caminho de erro ao iniciar a execução.
+- `validacao.js`: validação de cada linha extraída para função própria; prefixo "Linha N" aplicado em um só lugar.
 
 ## [1.2.0] - 2026-10-06
 

@@ -1,76 +1,61 @@
 /* validacao.js - regras puras (sem DOM nem APIs do Chrome) usadas pelo popup.
- * Separado do popup.js para poder ser testado com `node --test`.
+ * Módulo ES: importado pelo popup e pelos testes (`node --test`).
  */
 
-(function (raiz) {
-  const HOST_PORTAL = "loteriasonline.caixa.gov.br";
+export const HOST_PORTAL = "loteriasonline.caixa.gov.br";
 
-  /**
-   * Converte o texto digitado em uma lista de conjuntos válidos para o jogo.
-   * Aceita espaço, vírgula, ponto e ponto-e-vírgula como separadores.
-   * Retorna { sets: number[][], erros: string[] }; cada conjunto vem ordenado.
-   */
-  function parseSets(texto, jogo) {
-    const { minDezenas, maxDezenas, maiorDezena } = jogo;
-    const faixa = "01-" + String(maiorDezena).padStart(2, "0");
-    const sets = [];
-    const erros = [];
-
-    String(texto || "").split(/\r?\n/).forEach((linha, idx) => {
-      const bruto = linha.trim();
-      if (!bruto) return; // ignora linhas em branco
-
-      const n = idx + 1;
-      const partes = bruto.split(/[\s,.;]+/).filter(Boolean);
-      const dezenas = [];
-
-      for (const p of partes) {
-        if (!/^\d{1,2}$/.test(p)) {
-          erros.push(`Linha ${n}: "${p}" não é um número válido.`);
-          return;
-        }
-        const v = parseInt(p, 10);
-        if (v < 1 || v > maiorDezena) {
-          erros.push(`Linha ${n}: ${v} fora do intervalo ${faixa}.`);
-          return;
-        }
-        if (dezenas.includes(v)) {
-          erros.push(`Linha ${n}: número ${v} repetido.`);
-          return;
-        }
-        dezenas.push(v);
-      }
-
-      if (dezenas.length < minDezenas || dezenas.length > maxDezenas) {
-        erros.push(`Linha ${n}: tem ${dezenas.length} dezenas (precisa de ${minDezenas} a ${maxDezenas}).`);
-        return;
-      }
-
-      dezenas.sort((a, b) => a - b);
-      sets.push(dezenas);
-    });
-
-    return { sets, erros };
+/**
+ * Lê uma linha não vazia como conjunto de dezenas do jogo.
+ * Aceita espaço, vírgula, ponto e ponto-e-vírgula como separadores.
+ * Retorna { dezenas } (ordenadas) ou { erro }.
+ */
+function lerConjunto(linha, { minDezenas, maxDezenas, maiorDezena }) {
+  const dezenas = new Set();
+  for (const p of linha.split(/[\s,.;]+/).filter(Boolean)) {
+    if (!/^\d{1,2}$/.test(p)) return { erro: `"${p}" não é um número válido.` };
+    const v = Number(p);
+    if (v < 1 || v > maiorDezena) return { erro: `${v} fora do intervalo 01-${String(maiorDezena).padStart(2, "0")}.` };
+    if (dezenas.has(v)) return { erro: `número ${v} repetido.` };
+    dezenas.add(v);
   }
-
-  /** true se a URL pertence ao portal Loterias Online da Caixa (confere o hostname, não um trecho da URL). */
-  function ehPortalCaixa(url) {
-    try {
-      const { protocol, hostname } = new URL(url);
-      return protocol === "https:" && (hostname === HOST_PORTAL || hostname.endsWith("." + HOST_PORTAL));
-    } catch (_) {
-      return false;
-    }
+  if (dezenas.size < minDezenas || dezenas.size > maxDezenas) {
+    return { erro: `tem ${dezenas.size} dezenas (precisa de ${minDezenas} a ${maxDezenas}).` };
   }
+  return { dezenas: [...dezenas].sort((a, b) => a - b) };
+}
 
-  /** Id do jogo cuja rota aparece na URL (ex.: "#/lotofacil"), ou null. */
-  function jogoDaUrl(url, jogos) {
-    if (!ehPortalCaixa(url)) return null;
-    const hash = new URL(url).hash;
-    return Object.keys(jogos).find((id) => hash.startsWith(jogos[id].rota)) || null;
+/**
+ * Converte o texto digitado (um conjunto por linha) em conjuntos válidos para o jogo.
+ * Linhas em branco são ignoradas; cada erro aponta a linha original.
+ * Retorna { sets: number[][], erros: string[] }.
+ */
+export function parseSets(texto, jogo) {
+  const sets = [];
+  const erros = [];
+  String(texto ?? "").split(/\r?\n/).forEach((linha, i) => {
+    if (!linha.trim()) return;
+    const { dezenas, erro } = lerConjunto(linha.trim(), jogo);
+    if (erro) erros.push(`Linha ${i + 1}: ${erro}`);
+    else sets.push(dezenas);
+  });
+  return { sets, erros };
+}
+
+/** URL já interpretada se pertencer ao portal da Caixa via HTTPS (confere o hostname, não um trecho da URL); senão null. */
+function urlDoPortal(url) {
+  try {
+    const u = new URL(url);
+    const doPortal = u.hostname === HOST_PORTAL || u.hostname.endsWith("." + HOST_PORTAL);
+    return u.protocol === "https:" && doPortal ? u : null;
+  } catch (_) {
+    return null; // URL ausente ou inválida (ex.: aba sem permissão de host)
   }
+}
 
-  const api = { HOST_PORTAL, parseSets, ehPortalCaixa, jogoDaUrl };
-  if (typeof module !== "undefined" && module.exports) module.exports = api;
-  else raiz.Validacao = api;
-})(globalThis);
+export const ehPortalCaixa = (url) => urlDoPortal(url) !== null;
+
+/** Id do jogo cuja rota abre o hash da URL (ex.: "#/lotofacil"), ou null. */
+export function jogoDaUrl(url, jogos) {
+  const u = urlDoPortal(url);
+  return (u && Object.keys(jogos).find((id) => u.hash.startsWith(jogos[id].rota))) || null;
+}
